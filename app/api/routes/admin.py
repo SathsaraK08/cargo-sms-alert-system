@@ -1,14 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.security import require_admin, require_staff_or_admin
 from app.models.warehouse import BoxType, Warehouse, Country
+from app.models.user import User
 from typing import Dict, Any, List
 
 router = APIRouter()
 
 
 @router.get("/boxtypes")
-async def list_box_types(db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def list_box_types(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_staff_or_admin)
+) -> Dict[str, Any]:
     """List all box types"""
     box_types = db.query(BoxType).all()
     
@@ -30,7 +35,8 @@ async def list_box_types(db: Session = Depends(get_db)) -> Dict[str, Any]:
 @router.post("/boxtypes")
 async def create_box_type(
     box_type_data: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
 ) -> Dict[str, Any]:
     """Create a new box type"""
     box_type = BoxType(
@@ -53,7 +59,10 @@ async def create_box_type(
 
 
 @router.get("/warehouses")
-async def list_warehouses(db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def list_warehouses(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_staff_or_admin)
+) -> Dict[str, Any]:
     """List all warehouses"""
     warehouses = db.query(Warehouse).all()
     
@@ -73,7 +82,8 @@ async def list_warehouses(db: Session = Depends(get_db)) -> Dict[str, Any]:
 @router.post("/warehouses")
 async def create_warehouse(
     warehouse_data: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
 ) -> Dict[str, Any]:
     """Create a new warehouse"""
     warehouse = Warehouse(
@@ -96,7 +106,10 @@ async def create_warehouse(
 
 
 @router.get("/countries")
-async def list_countries(db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def list_countries(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_staff_or_admin)
+) -> Dict[str, Any]:
     """List all countries"""
     countries = db.query(Country).all()
     
@@ -109,4 +122,85 @@ async def list_countries(db: Session = Depends(get_db)) -> Dict[str, Any]:
             }
             for country in countries
         ]
+    }
+
+
+@router.post("/countries")
+async def create_country(
+    country_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+) -> Dict[str, Any]:
+    """Create a new country - requires admin role"""
+    country = Country(
+        iso_code=country_data["iso_code"],
+        name=country_data["name"]
+    )
+    
+    db.add(country)
+    db.commit()
+    db.refresh(country)
+    
+    return {
+        "id": str(country.id),
+        "iso_code": country.iso_code,
+        "name": country.name,
+        "message": "Country created successfully"
+    }
+
+
+@router.get("/users")
+async def list_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+) -> Dict[str, Any]:
+    """List all users - requires admin role"""
+    users = db.query(User).all()
+    
+    return {
+        "users": [
+            {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+                "role": user.role,
+                "active": user.active,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+            for user in users
+        ]
+    }
+
+
+@router.post("/users")
+async def create_user(
+    user_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+) -> Dict[str, Any]:
+    """Create a new user - requires admin role"""
+    from app.core.security import get_password_hash
+    
+    password = user_data.pop("password")
+    user_data["pw_hash"] = get_password_hash(password)
+    
+    user = User(
+        name=user_data["name"],
+        email=user_data["email"],
+        role=user_data["role"],
+        pw_hash=user_data["pw_hash"],
+        active=user_data.get("active", True)
+    )
+    
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "id": str(user.id),
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+        "active": user.active,
+        "message": "User created successfully"
     }
