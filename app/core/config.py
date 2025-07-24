@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     
     INFOBIP_API_KEY: str = ""
     INFOBIP_BASE_URL: str = "https://api.infobip.com"
+    INFOBIP_SENDER: str = "CargoSMS"
+    
+    SMS_SANDBOX_MODE: bool = True
+    TEST_SENDER_PHONE: str = "+94771234567"
+    TEST_RECEIVER_PHONE: str = "+94779876543"
     
     BCRYPT_ROUNDS: int = 12
     RATE_LIMIT_PER_MINUTE: int = 60
